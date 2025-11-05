@@ -169,23 +169,23 @@ class IOSToggle(tk.Label):
             glow = Image.new("RGBA", (W,H), (0,0,0,0))
             gdraw = ImageDraw.Draw(glow)
             # small glow around knob
-            gdraw.ellipse([cx - knob_r*1.5, r - knob_r*1.5, cx + knob_r*1.5, r + knob_r*1.5],
-                          fill=(on_rgb[0], on_rgb[1], on_rgb[2], int(80 * t)))
-            glow = glow.filter(ImageFilter.GaussianBlur(radius=8 * (0.7 + t)))
+            gdraw.ellipse([cx - knob_r*1.2, r - knob_r*1.2, cx + knob_r*1.2, r + knob_r*1.2],
+                          fill=(on_rgb[0], on_rgb[1], on_rgb[2], int(60 * t)))
+            glow = glow.filter(ImageFilter.GaussianBlur(radius=6 * (0.5 + t)))
             im = Image.alpha_composite(im, glow)
 
         # knob shadow (inside)
         shadow = Image.new("RGBA", (W,H), (0,0,0,0))
         sdraw = ImageDraw.Draw(shadow)
-        sdraw.ellipse([cx - knob_r + 3*self.scale, r - knob_r + 3*self.scale, cx + knob_r + 3*self.scale, r + knob_r + 3*self.scale],
-                      fill=(0,0,0,60))
-        shadow = shadow.filter(ImageFilter.GaussianBlur(radius=6))
+        sdraw.ellipse([cx - knob_r, r - knob_r + 2*self.scale, cx + knob_r, r + knob_r + 2*self.scale],
+                      fill=(0,0,0,50))
+        shadow = shadow.filter(ImageFilter.GaussianBlur(radius=4))
         im = Image.alpha_composite(im, shadow)
 
         # knob (white)
         draw.ellipse([cx - knob_r, r - knob_r, cx + knob_r, r + knob_r], fill=(255,255,255,255))
         # subtle knob rim
-        draw.ellipse([cx - knob_r+1, r - knob_r+1, cx + knob_r-1, r + knob_r-1], outline=(220,220,220,40), width= int(1 * self.scale))
+        draw.ellipse([cx - knob_r, r - knob_r, cx + knob_r, r + knob_r], outline=(220,220,220,30), width= int(0.5 * self.scale))
 
         small = im.resize((self.width, self.height), Image.LANCZOS)
         self._photo = ImageTk.PhotoImage(small)
@@ -303,7 +303,7 @@ class NullClipboardApp:
                         self.history_window.wm_attributes("-topmost", var.get())
                 if setting_key == "run_on_startup":
                     register_autorun(var.get())
-            toggle = IOSToggle(fr, var, width=70, height=34, on_color="#4cd964", off_color="#6b6b6b", command=cmd)
+            toggle = IOSToggle(fr, var, width=68, height=34, on_color="#4cd964", off_color="#6b6b6b", command=cmd)
             toggle.pack(side="right")
             return var
 
