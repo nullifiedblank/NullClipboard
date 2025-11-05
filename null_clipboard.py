@@ -16,6 +16,19 @@ import winreg
 from pystray import Icon as TrayIcon, MenuItem as TrayItem
 
 # ---------------------------
+# Modern UI Constants
+# ---------------------------
+BG_PRIMARY = "#1e1e1e"
+BG_SECONDARY = "#2d2d2d"
+TEXT_PRIMARY = "#e0e0e0"
+ACCENT = "#007acc"
+SUCCESS = "#4caf50"
+FONT_FAMILY = "Segoe UI"
+FONT_NORMAL = (FONT_FAMILY, 10)
+FONT_BOLD = (FONT_FAMILY, 12, "bold")
+
+
+# ---------------------------
 # Settings persistence
 # ---------------------------
 SETTINGS_FILE = "settings.json"
@@ -238,6 +251,7 @@ class NullClipboardApp:
         self.history_window = None
         self.tray_icon = None
         self.poll_thread = None
+        self._setup_styles()
 
         # register hotkey
         self._register_hotkey(settings.get("hotkey", DEFAULTS["hotkey"]))
@@ -249,6 +263,16 @@ class NullClipboardApp:
         self._start_polling()
 
     # ---------------- UI building
+    def _setup_styles(self):
+        s = ttk.Style()
+        s.theme_use('clam')
+        s.configure("TFrame", background=BG_PRIMARY)
+        s.configure("TLabel", background=BG_PRIMARY, foreground=TEXT_PRIMARY, font=FONT_NORMAL)
+        s.configure("TButton", background=ACCENT, foreground="white", font=FONT_NORMAL)
+        s.map("TButton", background=[('active', '#005f9e')])
+        s.configure("Vertical.TScrollbar", background=BG_SECONDARY, troughcolor=BG_PRIMARY)
+
+
     def show_main_window(self):
         if self.history_window and self.history_window.winfo_exists():
             self.history_window.lift()
@@ -258,22 +282,22 @@ class NullClipboardApp:
         self.history_window.title("Null Clipboard")
         self.history_window.geometry("800x400")
         self.history_window.minsize(600, 300)
-        self.history_window.configure(bg="#2b2b2b")
+        self.history_window.configure(bg=BG_PRIMARY)
         self.history_window.protocol("WM_DELETE_WINDOW", self._on_window_close)
         self.history_window.wm_attributes("-topmost", bool(settings.get("always_on_top", True)))
 
-        container = tk.Frame(self.history_window, bg="#2b2b2b")
-        container.pack(fill="both", expand=True)
+        container = ttk.Frame(self.history_window, style="TFrame")
+        container.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Left: history list
-        left = tk.Frame(container, bg="#2b2b2b")
-        left.pack(side="left", fill="both", expand=True, padx=(12,6), pady=12)
+        left = ttk.Frame(container, style="TFrame")
+        left.pack(side="left", fill="both", expand=True, padx=(0, 5), pady=0)
 
         # Canvas + scroll (hidden until hover)
-        self.canvas = tk.Canvas(left, bg="#2b2b2b", highlightthickness=0)
-        self.scrollbar = ttk.Scrollbar(left, orient="vertical", command=self.canvas.yview)
+        self.canvas = tk.Canvas(left, bg=BG_PRIMARY, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(left, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        self.scrollable_frame = tk.Frame(self.canvas, bg="#2b2b2b")
+        self.scrollable_frame = ttk.Frame(self.canvas, style="TFrame")
         self.canvas.create_window((0,0), window=self.scrollable_frame, anchor="nw")
         self.scrollable_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.pack(side="left", fill="both", expand=True)
@@ -282,17 +306,17 @@ class NullClipboardApp:
         left.bind("<Leave>", lambda e: self.scrollbar.pack_forget())
 
         # Right: pinned settings
-        right = tk.Frame(container, bg="#313338", width=300)
-        right.pack(side="right", fill="y", padx=(6,12), pady=12)
+        right = ttk.Frame(container, style="TFrame", width=300)
+        right.pack(side="right", fill="y", padx=(5, 0), pady=0)
         right.pack_propagate(False)
 
-        tk.Label(right, text="⚙ Settings", bg="#313338", fg="white", font=("Segoe UI", 14, "bold")).pack(anchor="w", padx=14, pady=(10,8))
+        ttk.Label(right, text="⚙ Settings", style="TLabel", font=FONT_BOLD).pack(anchor="w", padx=14, pady=(10,8))
 
         # toggles: autoclose, always on top, run on startup
         def add_toggle_line(parent, label_text, setting_key):
-            fr = tk.Frame(parent, bg="#313338")
-            fr.pack(fill="x", padx=12, pady=8)
-            tk.Label(fr, text=label_text, bg="#313338", fg="white").pack(side="left")
+            fr = ttk.Frame(parent, style="TFrame")
+            fr.pack(fill="x", padx=12, pady=6)
+            ttk.Label(fr, text=label_text, style="TLabel", font=FONT_NORMAL).pack(side="left")
             var = tk.BooleanVar(value=settings.get(setting_key, DEFAULTS.get(setting_key)))
             # command callback
             def cmd():
@@ -303,7 +327,7 @@ class NullClipboardApp:
                         self.history_window.wm_attributes("-topmost", var.get())
                 if setting_key == "run_on_startup":
                     register_autorun(var.get())
-            toggle = IOSToggle(fr, var, width=68, height=34, on_color="#4cd964", off_color="#6b6b6b", command=cmd)
+            toggle = IOSToggle(fr, var, width=68, height=34, on_color=ACCENT, off_color="#6b6b6b", command=cmd)
             toggle.pack(side="right")
             return var
 
@@ -312,15 +336,15 @@ class NullClipboardApp:
         self.var_run = add_toggle_line(right, "Run on Windows startup", "run_on_startup")
 
         # Hotkey area
-        hk_fr = tk.Frame(right, bg="#313338")
-        hk_fr.pack(fill="x", padx=12, pady=(12,6))
-        tk.Label(hk_fr, text="Hotkey:", bg="#313338", fg="white").pack(anchor="w")
-        self.hotkey_display = tk.Label(hk_fr, text=settings.get("hotkey", DEFAULTS["hotkey"]), bg="#2b2b2b", fg="white", padx=8, pady=4)
-        self.hotkey_display.pack(fill="x", pady=(6,6))
-        ttk.Button(hk_fr, text="Change Hotkey", command=self._open_hotkey_dialog).pack(fill="x")
+        hk_fr = ttk.Frame(right, style="TFrame")
+        hk_fr.pack(fill="x", padx=12, pady=(20,6))
+        ttk.Label(hk_fr, text="Hotkey:", style="TLabel", font=FONT_NORMAL).pack(anchor="w")
+        self.hotkey_display = ttk.Label(hk_fr, text=settings.get("hotkey", DEFAULTS["hotkey"]), background=BG_PRIMARY, foreground=TEXT_PRIMARY, padding=(8, 4), font=FONT_NORMAL, style="TLabel")
+        self.hotkey_display.pack(fill="x", pady=4)
+        ttk.Button(hk_fr, text="Change Hotkey", command=self._open_hotkey_dialog, style="TButton").pack(fill="x", pady=(0, 4))
 
         # Save history button
-        ttk.Button(right, text="Save Clipboard History", command=self._save_history).pack(fill="x", padx=12, pady=(14,6))
+        ttk.Button(right, text="Save Clipboard History", command=self._save_history, style="TButton").pack(fill="x", padx=12, pady=10)
 
         # Build UI for existing history
         self._build_history_ui()
@@ -338,27 +362,27 @@ class NullClipboardApp:
 
     def _insert_history_item_widget(self, item, animate=True):
         # item = {"type":"text"/"image","content":..., "ts":...}
-        frame = tk.Frame(self.scrollable_frame, bg="#2c2c2c", bd=0, highlightthickness=2)
-        frame.pack(fill="x", pady=8, padx=6)
-        # use highlightbackground for border color
-        frame.configure(highlightbackground="#444444")  # default gray border
-        frame.configure(highlightcolor="#444444")
-        frame.configure(highlightthickness=2)
-        frame.configure(relief="flat")
+        frame = ttk.Frame(self.scrollable_frame, style="TFrame")
+        frame.pack(fill="x", pady=4, padx=6)
+
         frame.configure(cursor="hand2")
 
         # hover glow -> white border
         def on_enter(e, fr=frame):
-            fr.configure(highlightbackground="#ffffff")
+            fr.configure(style="Hover.TFrame")
         def on_leave(e, fr=frame):
-            fr.configure(highlightbackground="#444444")
+            fr.configure(style="TFrame")
+
+        s = ttk.Style()
+        s.configure("Hover.TFrame", background=ACCENT)
+
         frame.bind("<Enter>", on_enter)
         frame.bind("<Leave>", on_leave)
 
         if item["type"] == "text":
             txt = item["content"]
             preview = txt if len(txt) <= 240 else txt[:240] + "…"
-            lbl = tk.Label(frame, text=preview, bg="#2c2c2c", fg="white", anchor="w", justify="left", wraplength=680, padx=6, pady=6)
+            lbl = ttk.Label(frame, text=preview, style="TLabel", wraplength=680, padding=(6,6), font=FONT_NORMAL)
             lbl.pack(fill="both", expand=True)
             lbl.bind("<Button-1>", lambda e, c=txt, fr=frame: self._on_click_text(c, fr))
             frame.bind("<Button-1>", lambda e, c=txt, fr=frame: self._on_click_text(c, fr))
@@ -368,7 +392,7 @@ class NullClipboardApp:
             thumb = img.copy()
             thumb.thumbnail((220, 220))
             photo = ImageTk.PhotoImage(thumb)
-            lbl = tk.Label(frame, image=photo, bg="#2c2c2c")
+            lbl = ttk.Label(frame, image=photo, style="TLabel")
             lbl.image = photo
             lbl.pack(side="left", padx=6, pady=6)
             lbl.bind("<Button-1>", lambda e, c=item["content"], fr=frame: self._on_click_image(c, fr))
@@ -377,29 +401,39 @@ class NullClipboardApp:
         # Animate fade-in (pronounced): we simulate fade by changing the background from darker to normal
         if animate:
             steps = 12
+            style_name = f"Fade.TFrame.{id(frame)}"
+            label_style_name = f"Fade.TLabel.{id(frame)}"
+            s = ttk.Style()
+
             def fade(i=0):
                 if i <= steps:
-                    t = i/steps
+                    t = i / steps
                     # interpolate between darker and normal
-                    base = (28,28,28)
-                    normal = (44,44,44)
-                    r = int(base[0] + (normal[0]-base[0])*t)
-                    g = int(base[1] + (normal[1]-base[1])*t)
-                    b = int(base[2] + (normal[2]-base[2])*t)
-                    frame.configure(bg=f"#{r:02x}{g:02x}{b:02x}")
-                    # ensure children bg update
-                    for ch in frame.winfo_children():
-                        ch.configure(bg=f"#{r:02x}{g:02x}{b:02x}")
-                    frame.after(22, lambda: fade(i+1))
+                    base = [int(BG_PRIMARY[1:3], 16), int(BG_PRIMARY[3:5], 16), int(BG_PRIMARY[5:7], 16)]
+                    normal = [int(BG_SECONDARY[1:3], 16), int(BG_SECONDARY[3:5], 16), int(BG_SECONDARY[5:7], 16)]
+                    r = int(base[0] + (normal[0] - base[0]) * t)
+                    g = int(base[1] + (normal[1] - base[1]) * t)
+                    b = int(base[2] + (normal[2] - base[2]) * t)
+                    bg_color = f"#{r:02x}{g:02x}{b:02x}"
+
+                    s.configure(style_name, background=bg_color)
+                    s.configure(label_style_name, background=bg_color, foreground=TEXT_PRIMARY)
+
+                    frame.configure(style=style_name)
+                    for child in frame.winfo_children():
+                        child.configure(style=label_style_name)
+
+                    frame.after(22, lambda: fade(i + 1))
                 else:
-                    frame.configure(bg="#2c2c2c")
-                    for ch in frame.winfo_children():
-                        ch.configure(bg="#2c2c2c")
+                    frame.configure(style="TFrame")
+                    for child in frame.winfo_children():
+                        child.configure(style="TLabel")
+
             fade()
         else:
-            frame.configure(bg="#2c2c2c")
+            frame.configure(style="TFrame")
             for ch in frame.winfo_children():
-                ch.configure(bg="#2c2c2c")
+                ch.configure(style="TLabel")
 
         # store widget on item for potential update (not strictly necessary)
         item["_widget"] = frame
@@ -448,15 +482,19 @@ class NullClipboardApp:
                 # use green intensity peaking early for pronounced effect
                 peak = 1 - abs(ease - 0.4) / 0.6
                 # compute color between white and green
-                gw = (90,200,120)  # mint-green
+                gw = [int(SUCCESS[1:3], 16), int(SUCCESS[3:5], 16), int(SUCCESS[5:7], 16)]
                 base = (68,68,68)  # gray border base
                 r = int(base[0] + (gw[0]-base[0]) * peak)
                 g = int(base[1] + (gw[1]-base[1]) * peak)
                 b = int(base[2] + (gw[2]-base[2]) * peak)
-                frame.configure(highlightbackground=f"#{r:02x}{g:02x}{b:02x}")
+
+                s = ttk.Style()
+                s.configure("Success.TFrame", background=f"#{r:02x}{g:02x}{b:02x}")
+                frame.configure(style="Success.TFrame")
+
                 frame.after(18, lambda: animate(i+1))
             else:
-                frame.configure(highlightbackground="#444444")
+                frame.configure(style="TFrame")
         animate(0)
 
     # ---------------- history manipulation
@@ -541,9 +579,9 @@ class NullClipboardApp:
         dlg = tk.Toplevel(self.history_window)
         dlg.title("Change Hotkey")
         dlg.geometry("340x140")
-        dlg.configure(bg="#2b2b2b")
+        dlg.configure(bg=BG_SECONDARY)
         dlg.resizable(False, False)
-        tk.Label(dlg, text="Enter new hotkey (e.g. ctrl+alt+h):", bg="#2b2b2b", fg="white").pack(padx=12, pady=(12,6))
+        ttk.Label(dlg, text="Enter new hotkey (e.g. ctrl+alt+h):", background=BG_SECONDARY, foreground=TEXT_PRIMARY, font=FONT_NORMAL).pack(padx=12, pady=(12,6))
         ent = ttk.Entry(dlg)
         ent.insert(0, settings.get("hotkey", DEFAULTS["hotkey"]))
         ent.pack(fill="x", padx=12)
@@ -554,7 +592,7 @@ class NullClipboardApp:
                 self.hotkey_display.config(text=hk)
                 dlg.destroy()
                 messagebox.showinfo("Hotkey Changed", f"Hotkey set to {hk}", parent=self.history_window)
-        ttk.Button(dlg, text="Save", command=save).pack(pady=12)
+        ttk.Button(dlg, text="Save", command=save, style="TButton").pack(pady=12)
 
     # ---------------- save history
     def _save_history(self):
