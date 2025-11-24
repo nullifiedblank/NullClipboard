@@ -137,7 +137,7 @@ class IOSToggle(tk.Label):
     """
     def __init__(self, parent, var: tk.BooleanVar, width=64, height=36,
                  on_color="#4cd964", off_color="#6b6b6b", command=None, **kwargs):
-        super().__init__(parent, bg=parent["bg"], **kwargs)
+        super().__init__(parent, bg=BG_SECONDARY, **kwargs)
         self.parent = parent
         self.var = var
         self.width = width
@@ -271,6 +271,10 @@ class NullClipboardApp:
         s.configure("TButton", background=ACCENT, foreground="white", font=FONT_NORMAL)
         s.map("TButton", background=[('active', '#005f9e')])
         s.configure("Vertical.TScrollbar", background=BG_SECONDARY, troughcolor=BG_PRIMARY)
+        s.configure("Secondary.TFrame", background=BG_SECONDARY)
+        s.configure("Secondary.TLabel", background=BG_SECONDARY, foreground=TEXT_PRIMARY, font=FONT_NORMAL)
+        s.configure("Hover.TFrame", background=ACCENT)
+        s.configure("Success.TFrame", background=SUCCESS)
 
 
     def show_main_window(self):
@@ -306,17 +310,17 @@ class NullClipboardApp:
         left.bind("<Leave>", lambda e: self.scrollbar.pack_forget())
 
         # Right: pinned settings
-        right = ttk.Frame(container, style="TFrame", width=300)
+        right = ttk.Frame(container, style="Secondary.TFrame", width=300)
         right.pack(side="right", fill="y", padx=(5, 0), pady=0)
         right.pack_propagate(False)
 
-        ttk.Label(right, text="⚙ Settings", style="TLabel", font=FONT_BOLD).pack(anchor="w", padx=14, pady=(10,8))
+        ttk.Label(right, text="⚙ Settings", style="Secondary.TLabel", font=FONT_BOLD).pack(anchor="w", padx=14, pady=(10,8))
 
         # toggles: autoclose, always on top, run on startup
         def add_toggle_line(parent, label_text, setting_key):
-            fr = ttk.Frame(parent, style="TFrame")
+            fr = ttk.Frame(parent, style="Secondary.TFrame")
             fr.pack(fill="x", padx=12, pady=6)
-            ttk.Label(fr, text=label_text, style="TLabel", font=FONT_NORMAL).pack(side="left")
+            ttk.Label(fr, text=label_text, style="Secondary.TLabel", font=FONT_NORMAL).pack(side="left")
             var = tk.BooleanVar(value=settings.get(setting_key, DEFAULTS.get(setting_key)))
             # command callback
             def cmd():
@@ -336,9 +340,9 @@ class NullClipboardApp:
         self.var_run = add_toggle_line(right, "Run on Windows startup", "run_on_startup")
 
         # Hotkey area
-        hk_fr = ttk.Frame(right, style="TFrame")
+        hk_fr = ttk.Frame(right, style="Secondary.TFrame")
         hk_fr.pack(fill="x", padx=12, pady=(20,6))
-        ttk.Label(hk_fr, text="Hotkey:", style="TLabel", font=FONT_NORMAL).pack(anchor="w")
+        ttk.Label(hk_fr, text="Hotkey:", style="Secondary.TLabel", font=FONT_NORMAL).pack(anchor="w")
         self.hotkey_display = ttk.Label(hk_fr, text=settings.get("hotkey", DEFAULTS["hotkey"]), background=BG_PRIMARY, foreground=TEXT_PRIMARY, padding=(8, 4), font=FONT_NORMAL, style="TLabel")
         self.hotkey_display.pack(fill="x", pady=4)
         ttk.Button(hk_fr, text="Change Hotkey", command=self._open_hotkey_dialog, style="TButton").pack(fill="x", pady=(0, 4))
@@ -372,9 +376,6 @@ class NullClipboardApp:
             fr.configure(style="Hover.TFrame")
         def on_leave(e, fr=frame):
             fr.configure(style="TFrame")
-
-        s = ttk.Style()
-        s.configure("Hover.TFrame", background=ACCENT)
 
         frame.bind("<Enter>", on_enter)
         frame.bind("<Leave>", on_leave)
