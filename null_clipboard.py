@@ -6,7 +6,7 @@ import time
 import io
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
 from PIL import Image, ImageTk, ImageGrab, ImageDraw, ImageFilter
 import pyperclip
@@ -16,13 +16,13 @@ import winreg
 from pystray import Icon as TrayIcon, MenuItem as TrayItem
 
 # ---------------------------
-# Modern UI Constants
+# Monochromatic UI Constants
 # ---------------------------
-BG_PRIMARY = "#1e1e1e"
-BG_SECONDARY = "#2d2d2d"
-TEXT_PRIMARY = "#e0e0e0"
-ACCENT = "#007acc"
-SUCCESS = "#4caf50"
+BG_PRIMARY = "#2a2a2a"
+BG_SECONDARY = "#3c3c3c"
+TEXT_PRIMARY = "#d0d0d0"
+ACCENT = "#ffffff"
+SUCCESS = "#7fff7f"
 FONT_FAMILY = "Segoe UI"
 FONT_NORMAL = (FONT_FAMILY, 10)
 FONT_BOLD = (FONT_FAMILY, 12, "bold")
@@ -37,7 +37,7 @@ DEFAULTS = {
     "always_on_top": True,
     "run_on_startup": False,
     "autoclose": False,
-    "history_limit": 50
+    "history_limit": 15
 }
 
 def load_settings():
@@ -79,22 +79,19 @@ def set_clipboard_image(pil_img):
     finally:
         win32clipboard.CloseClipboard()
 
-def save_history_folder(history):
-    timestamp = datetime.now().strftime("%d%m%y%H%M%S")
-    folder = f"NullClipboard{timestamp}"
-    os.makedirs(folder, exist_ok=True)
+def save_history_folder(history, folder_path):
+    os.makedirs(folder_path, exist_ok=True)
     for idx, item in enumerate(history, start=1):
         if item["type"] == "text":
-            path = os.path.join(folder, f"clip_{idx}.txt")
+            path = os.path.join(folder_path, f"clip_{idx}.txt")
             with open(path, "w", encoding="utf-8") as f:
                 f.write(item["content"])
         else:
-            path = os.path.join(folder, f"clip_{idx}.png")
+            path = os.path.join(folder_path, f"clip_{idx}.png")
             try:
                 item["content"].save(path)
             except Exception:
                 item["content"].save(path, "PNG")
-    return os.path.abspath(folder)
 
 def register_autorun(enable: bool):
     key_name = "NullClipboard"
@@ -269,7 +266,7 @@ class NullClipboardApp:
         s.configure("TFrame", background=BG_PRIMARY)
         s.configure("TLabel", background=BG_PRIMARY, foreground=TEXT_PRIMARY, font=FONT_NORMAL)
         s.configure("TButton", background=ACCENT, foreground="white", font=FONT_NORMAL)
-        s.map("TButton", background=[('active', '#005f9e')])
+        s.map("TButton", background=[('active', '#cccccc')])
         s.configure("Vertical.TScrollbar", background=BG_SECONDARY, troughcolor=BG_PRIMARY)
         s.configure("Secondary.TFrame", background=BG_SECONDARY)
         s.configure("Secondary.TLabel", background=BG_SECONDARY, foreground=TEXT_PRIMARY, font=FONT_NORMAL)
@@ -284,8 +281,8 @@ class NullClipboardApp:
 
         self.history_window = tk.Toplevel(self.root)
         self.history_window.title("Null Clipboard")
-        self.history_window.geometry("800x400")
-        self.history_window.minsize(600, 300)
+        self.history_window.geometry("400x600")
+        self.history_window.minsize(300, 400)
         self.history_window.configure(bg=BG_PRIMARY)
         self.history_window.protocol("WM_DELETE_WINDOW", self._on_window_close)
         self.history_window.wm_attributes("-topmost", bool(settings.get("always_on_top", True)))
@@ -293,36 +290,53 @@ class NullClipboardApp:
         container = ttk.Frame(self.history_window, style="TFrame")
         container.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Left: history list
-        left = ttk.Frame(container, style="TFrame")
-        left.pack(side="left", fill="both", expand=True, padx=(0, 5), pady=0)
+        # Top bar with settings and save buttons
+        top_bar = ttk.Frame(container, style="TFrame")
+        top_bar.pack(side="top", fill="x", pady=(0, 10))
 
-        # Canvas + scroll (hidden until hover)
-        self.canvas = tk.Canvas(left, bg=BG_PRIMARY, highlightthickness=0)
-        self.scrollbar = ttk.Scrollbar(left, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
+        settings_button = ttk.Button(top_bar, text="Settings", command=self._open_settings_window, style="TButton")
+        settings_button.pack(side="left")
+
+        save_button = ttk.Button(top_bar, text="Save History", command=self._save_history, style="TButton")
+        save_button.pack(side="right")
+
+
+        # History list
+        history_frame = ttk.Frame(container, style="TFrame")
+        history_frame.pack(side="bottom", fill="both", expand=True)
+
+        self.canvas = tk.Canvas(history_frame, bg=BG_PRIMARY, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(history_frame, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
         self.scrollable_frame = ttk.Frame(self.canvas, style="TFrame")
         self.canvas.create_window((0,0), window=self.scrollable_frame, anchor="nw")
+
         self.scrollable_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+
         self.canvas.pack(side="left", fill="both", expand=True)
         self.canvas.bind_all("<MouseWheel>", lambda e: self.canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
-        left.bind("<Enter>", lambda e: self.scrollbar.pack(side="right", fill="y"))
-        left.bind("<Leave>", lambda e: self.scrollbar.pack_forget())
 
-        # Right: pinned settings
-        right = ttk.Frame(container, style="Secondary.TFrame", width=300)
-        right.pack(side="right", fill="y", padx=(5, 0), pady=0)
-        right.pack_propagate(False)
+        history_frame.bind("<Enter>", lambda e: self.scrollbar.pack(side="right", fill="y"))
+        history_frame.bind("<Leave>", lambda e: self.scrollbar.pack_forget())
 
-        ttk.Label(right, text="⚙ Settings", style="Secondary.TLabel", font=FONT_BOLD).pack(anchor="w", padx=14, pady=(10,8))
+        self._build_history_ui()
 
-        # toggles: autoclose, always on top, run on startup
+    def _open_settings_window(self):
+        settings_window = tk.Toplevel(self.history_window)
+        settings_window.title("Settings")
+        settings_window.geometry("400x300")
+        settings_window.configure(bg=BG_SECONDARY)
+        settings_window.resizable(False, False)
+
+        ttk.Label(settings_window, text="⚙ Settings", style="Secondary.TLabel", font=FONT_BOLD).pack(anchor="w", padx=14, pady=(10,8))
+
         def add_toggle_line(parent, label_text, setting_key):
             fr = ttk.Frame(parent, style="Secondary.TFrame")
             fr.pack(fill="x", padx=12, pady=6)
             ttk.Label(fr, text=label_text, style="Secondary.TLabel", font=FONT_NORMAL).pack(side="left")
             var = tk.BooleanVar(value=settings.get(setting_key, DEFAULTS.get(setting_key)))
-            # command callback
+
             def cmd():
                 settings[setting_key] = var.get()
                 save_settings(settings)
@@ -331,27 +345,21 @@ class NullClipboardApp:
                         self.history_window.wm_attributes("-topmost", var.get())
                 if setting_key == "run_on_startup":
                     register_autorun(var.get())
+
             toggle = IOSToggle(fr, var, width=68, height=34, on_color=ACCENT, off_color="#6b6b6b", command=cmd)
             toggle.pack(side="right")
             return var
 
-        self.var_autoclose = add_toggle_line(right, "Close after copy", "autoclose")
-        self.var_always_on_top = add_toggle_line(right, "Always on top", "always_on_top")
-        self.var_run = add_toggle_line(right, "Run on Windows startup", "run_on_startup")
+        add_toggle_line(settings_window, "Close after copy", "autoclose")
+        add_toggle_line(settings_window, "Always on top", "always_on_top")
+        add_toggle_line(settings_window, "Run on Windows startup", "run_on_startup")
 
-        # Hotkey area
-        hk_fr = ttk.Frame(right, style="Secondary.TFrame")
+        hk_fr = ttk.Frame(settings_window, style="Secondary.TFrame")
         hk_fr.pack(fill="x", padx=12, pady=(20,6))
         ttk.Label(hk_fr, text="Hotkey:", style="Secondary.TLabel", font=FONT_NORMAL).pack(anchor="w")
         self.hotkey_display = ttk.Label(hk_fr, text=settings.get("hotkey", DEFAULTS["hotkey"]), background=BG_PRIMARY, foreground=TEXT_PRIMARY, padding=(8, 4), font=FONT_NORMAL, style="TLabel")
         self.hotkey_display.pack(fill="x", pady=4)
         ttk.Button(hk_fr, text="Change Hotkey", command=self._open_hotkey_dialog, style="TButton").pack(fill="x", pady=(0, 4))
-
-        # Save history button
-        ttk.Button(right, text="Save Clipboard History", command=self._save_history, style="TButton").pack(fill="x", padx=12, pady=10)
-
-        # Build UI for existing history
-        self._build_history_ui()
 
     # ---------------- history UI helpers
     def _build_history_ui(self):
@@ -383,7 +391,7 @@ class NullClipboardApp:
         if item["type"] == "text":
             txt = item["content"]
             preview = txt if len(txt) <= 240 else txt[:240] + "…"
-            lbl = ttk.Label(frame, text=preview, style="TLabel", wraplength=680, padding=(6,6), font=FONT_NORMAL)
+            lbl = ttk.Label(frame, text=preview, style="TLabel", wraplength=380, padding=(6,6), font=FONT_NORMAL)
             lbl.pack(fill="both", expand=True)
             lbl.bind("<Button-1>", lambda e, c=txt, fr=frame: self._on_click_text(c, fr))
             frame.bind("<Button-1>", lambda e, c=txt, fr=frame: self._on_click_text(c, fr))
@@ -597,12 +605,10 @@ class NullClipboardApp:
 
     # ---------------- save history
     def _save_history(self):
-        folder = save_history_folder(self.history)
-        try:
-            os.startfile(folder)
-        except Exception:
-            pass
-        messagebox.showinfo("Saved", f"Saved history to {folder}", parent=self.history_window)
+        folder_path = filedialog.askdirectory()
+        if folder_path:
+            save_history_folder(self.history, folder_path)
+            messagebox.showinfo("Saved", f"Saved history to {folder_path}", parent=self.history_window)
 
     # ---------------- tray icon
     def _setup_tray(self):
